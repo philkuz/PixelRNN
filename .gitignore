@@ -1,0 +1,7 @@
+*.py[co]
+__pycache__
+*.egg-info
+*~
+*.bak
+.ipynb_checkpoints
+MNIST-data/
