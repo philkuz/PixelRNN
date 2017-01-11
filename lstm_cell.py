@@ -85,8 +85,6 @@ class DiagonalLSTMCell(rnn_cell.RNNCell):
       c = f * c_prev + i * g
       h = tf.mul(o, tf.tanh(c), name='hid')
 
-    logger.debug('[DiagonalLSTMCell] %s : %s %s -> %s %s' \
-        % (scope, i_to_s.name, i_to_s.get_shape(), h.name, h.get_shape()))
 
     new_state = tf.concat(1, [c, h])
     return h, new_state
