@@ -19,6 +19,9 @@ def train(dataset_name,
         img_height = img_width = cifar10.IMAGE_SIZE
         n_channels = 3
         batch_size = 16
+        # TODO
+        # next_train_batch
+        # next_test_batch
 
     else:
         raise('{0} is not a supported dataset'.format(dataset_name))

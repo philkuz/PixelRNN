@@ -21,6 +21,14 @@
 # SOFTWARE.
 
 """Class for the Diagonal LSTM Cell"""
+import logging
+logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m-%d %H:%M:%S")
+
+import numpy as np
+import tensorflow as tf
+from tensorflow.python.ops import rnn_cell
+from ops import conv1d
+
 
 class DiagonalLSTMCell(rnn_cell.RNNCell):
   def __init__(self, hidden_dims, height, channel):
