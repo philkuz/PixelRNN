@@ -46,12 +46,14 @@ def conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope
     stride_shape = [1, 1, 1, 1]
     outputs = tf.nn.conv2d(input, weights, stride_shape, padding='SAME', name='conv2d_outputs')
     tf.add_to_collection('conv2d_outputs', outputs)
+    return outputs
+
 def skew(inputs, scope="skew"):
     with tf.name_scope(scope):
-        batch, width, height, channel = get_shape(inputs)
+        batch, height, width, channel = get_shape(inputs)
         new_width = width + height
         skewed_rows = []# inputs = tf.zeros([batch, width * 2 - 1 , height, channel])
-        rows = tf.unpack(tf.transpose(inputs, [2, 0, 3, 1 ])) # [height, batch, channel, width]
+        rows = tf.unpack(tf.transpose(inputs, [1, 0, 3, 2])) # [height, batch, channel, width]
 
         for i, row in enumerate(rows):
             squeezed_row = tf.squeeze(row, [0]) # [batch, channel, width]
@@ -63,14 +65,30 @@ def skew(inputs, scope="skew"):
 
             assert get_shape(new_row) == [batch, new_width, channel], "wrong shape of skewed row"
             skewed_rows.append(new_row)
+
         skewed_inputs = tf.pack(skewed_rows, axis=1, name="skewed_inputs")
-        assert get_shape(skewed_inputs) == [None, height, new_width, channel], "wrong shape of skewed input"
+        desired_shape = [None, height, new_width, channel]
+        skewed_shape = get_shape(skewed_inputs)
+        assert skewed_shape == desired_shape, "wrong shape of skewed input. Actual {}; Expected {}".format(skewed_shape, desired_shape)
 
     return skewed_inputs
 
-def unskew(skewed_outputs, scope="unskew"):
-    pass
+def unskew(skewed_outputs, width=0, scope="unskew"):
+    with tf.name_scope(scope):
+        batch, height, skewed_width, channel = get_shape(skewed_outputs)
+        rows = tf.unpack(tf.transpose(skewed_outputs, [1, 0, 2, 3,]))  # [height, batch, width, channel]
+        width = width if width else height
 
+        unskewed_rows = []
+        # iterate through the rows
+        for i, row in enumerate(rows):
+            sliced_row = tf.slice(row, [0, 0, i, 0], [-1, -1, width, -1])
+            unskewed_rows.append(sliced_row)
+        unskewed_output = tf.pack(unskewed_rows, axis=1, name="unskewed_output")
+        desired_shape = [None, height, width, channel]
+        output_shape = get_shape(unskewed_output)
+        assert output_shape == desired_shape, "wrong shape of unskewed output. Actual {}; Expected {}".format(output_shape, desired_shape)
+    return unskewed_output
 
 
 def diagonal_lstm(inputs, hidden_dims, scope='diagonal_lstm'):
@@ -106,7 +124,7 @@ def diagonal_lstm(inputs, hidden_dims, scope='diagonal_lstm'):
         width_first_outputs = tf.reshape(packed_outputs,
           [-1, width, height, hidden_dims]) # [batch, width, height, hidden_dims]
 
-        skewed_outputs = tf.transpose(width_first_outputs, [0, 2, 1, 3])
+        skewed_outputs = tf.transpose(width_first_outputs, [0, 2, 1, 3]) # [batch, height, width, hidden_dims]
         tf.add_to_collection('skewed_outputs', skewed_outputs)
 
         outputs = unskew(skewed_outputs)
