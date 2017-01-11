@@ -1,14 +1,26 @@
 import tensorflow as tf
 import numpy as np
-
+from utils import get_shape
 WEIGHT_INITIALIZER = tf.contrib.layers.xavier_initializer()
+
+def conv1d(input, num_outputs, kernel_size, scope='conv1d'):
+    with tf.variable_scope(scope):
+        batch_size, image_height, image_width, num_channels = get_shape(input)
+        kernel_height, kernel_width = kernel_size, 1
+        # initialize kernel weights
+        weights_shape = [kernel_height, kernel_width, num_channels, num_outputs]
+        weights = tf.get_variable("weights", weights_shape, tf.float32, WEIGHT_INITIALIZER, None)
+
+    stride_shape = [1, 1, 1, 1]
+    outputs = tf.nn.conv2d(input, weights, stride_shape, padding='SAME', name='conv1d_outputs')
+    return outputs
 
 def conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope='conv2d'):
     with tf.variable_scope(scope):
-        batch_size, image_height, image_width, num_channels = input.get_shape().as_list()
+        batch_size, image_height, image_width, num_channels = get_shape(input)
 
-        center_height = kernel_height // 2
-        center_width = kernel_width // 2
+        center_height = kernel_height / 2
+        center_width = kernel_width / 2
 
         # initialize kernel weights
         weights_shape = [kernel_height, kernel_width, num_channels, num_outputs]
