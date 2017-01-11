@@ -1,5 +1,6 @@
 import tensorflow as tf
 from utils import *
+import numpy as np
 
 
 USE_RESIDUALS = False
@@ -8,7 +9,7 @@ NUM_HIDDEN_UNITS = 6
 INPUT_RECURRENT_LENGTH = 4
 OUTPUT_RECURRENT_LENGTH = 4
 
-def conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope'conv2d'):
+def conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope='conv2d'):
     with tf.variable_scope(scope):
         batch_size, image_height, image_width, num_channels = input.get_shape().as_list()
 
@@ -70,7 +71,5 @@ class Network:
             recurrent_out = tf.nn.relu(conv_layer)
             self.recurrent_layer_outputs.append(recurrent_out)
             last_input = recurrent_out
-        
-
-
+        self.output = last_input
 

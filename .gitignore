@@ -5,3 +5,4 @@ __pycache__
 *.bak
 .ipynb_checkpoints
 MNIST-data/
+.idea/
