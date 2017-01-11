@@ -8,6 +8,8 @@ def binarize(images):
     #return (images < 0.5).astype('float32')
 
 
+def get_shape(tensor):
+    return tensor.get_shape().as_list()
 # TEST
 if __name__=="__main__":
     load_cifar(False, 16)
