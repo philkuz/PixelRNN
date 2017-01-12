@@ -104,6 +104,7 @@ class Network:
         return self.sess.run(self.output, feed_dict={self.inputs: images})
 
     def test(self, images, perform_update=False):
+        # TODO change to feedforward or something like that
         if perform_update:
             _, cost = self.sess.run([self.optimize, self.loss],
                     feed_dict = {self.inputs: images})
@@ -111,7 +112,7 @@ class Network:
             cost = self.sess.run(self.loss, feed_dict={self.inputs: images})
         return cost
 
-    def generate_image(self, num_images):
+    def generate_image(self, num_images=100):
         samples = np.zeros((num_images, self.image_height, self.image_width, self.num_channels), dtype='float32')
         for i in range(self.image_height):
             for j in range(self.image_width):

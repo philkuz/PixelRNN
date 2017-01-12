@@ -5,7 +5,7 @@ import numpy as np
 def binarize(images):
     rand = np.random.uniform(size=images.shape)
     return (rand < images).astype('float32')
-    #return (images < 0.5).astype('float32')
+    #return (images < 0.5).astype('float32') # TODO research why we don't use this standard binarization
 
 
 def get_shape(tensor):

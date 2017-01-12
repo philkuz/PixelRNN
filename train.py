@@ -1,4 +1,5 @@
 from convnet import Network
+from utils import binarize
 import tensorflow as tf
 import cifar10
 import mnist
@@ -43,7 +44,24 @@ def train(dataset_name,
         for epoch in xrange(max_epochs):
             training_costs = []
             for i in xrange(num_train_batches):
-                next_train_batch
+                images = binarize(next_train_batch(BATCH_SIZE)).reshape([BATCH_SIZE, image_height, image_width, num_channels])
+                cost = network.test(images, with_update=True)
+                training_costs.append(cost)
+            # test
+            testing_costs = []
+            for i in xrange(num_test_batches):
+                images = binarize(next_test_batch(BATCH_SIZE)).reshape(
+                    [BATCH_SIZE, image_height, image_width, num_channels])
+
+                cost = network.test(images, with_update=False)
+                testing_costs.append(cost)
+            # save the images some how
+            samples = network.generate_image()
+            
+
+
+
+
 
 
 
