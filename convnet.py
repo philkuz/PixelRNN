@@ -112,12 +112,23 @@ class Network:
             cost = self.sess.run(self.loss, feed_dict={self.inputs: images})
         return cost
 
-    def generate_image(self, num_images=100):
-        samples = np.zeros((num_images, self.image_height, self.image_width, self.num_channels), dtype='float32')
-        for i in range(self.image_height):
-            for j in range(self.image_width):
+    def generate_image(self, num_images=100, starting_pos=[0, 0], starting_image=None):
+        """
+        Generate an Image from a starting image
+        :param num_images: The number of images that you want to generate
+        :param starting_pos: The starting position [x, y]
+        :param starting_image: The iamage
+        :return:
+        """
+        if starting_image is not None:
+            samples = starting_image.copy()
+        else:
+            samples = np.zeros((num_images, self.image_height, self.image_width, self.num_channels), dtype='float32')
+        for i in range(starting_pos[1], self.image_height):
+            for j in range(starting_pos[0], self.image_width):
                 for k in range(self.num_channels):
                     next_sample = binarize(self.predict(samples))
                     samples[:, i, j, k] = next_sample[:, i, j, k]
         return samples
+
 

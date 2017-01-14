@@ -57,7 +57,7 @@ def train(dataset_name,
                 testing_costs.append(cost)
             # save the images some how
             samples = network.generate_image()
-            
+
 
 
 
