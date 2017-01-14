@@ -14,8 +14,8 @@ def load_images(dataset_name, normalize=True):
     if dataset_name == 'mnist':
         dataset = mnist.load_mnist()
         image_height, image_width, num_channels = MNIST_PARAMS
-        next_train_batch = lambda x: mnist.train.next_batch(x)[0]
-        next_test_batch = lambda x: mnist.test.next_batch(x)[0]
+        next_train_batch = lambda x: dataset.train.next_batch(x)[0]
+        next_test_batch = lambda x: dataset.test.next_batch(x)[0]
     elif dataset_name == 'cifar':
         dataset = cifar10.load_cifar()
         image_height, image_width, num_channels = CIFAR_PARAMS
@@ -42,9 +42,10 @@ def train(dataset_name,
 
     with tf.Session() as sess:
         network = Network(sess, image_height, image_width, num_channels)
-
+        tf.initialize_all_variables().run()
         sampled_images = []
         for epoch in xrange(max_epochs):
+            print('Current epoch: %i' % epoch)
             training_costs = []
             for i in xrange(num_train_batches):
                 images = binarize(next_train_batch(BATCH_SIZE)).reshape([BATCH_SIZE, image_height, image_width, num_channels])
@@ -52,6 +53,7 @@ def train(dataset_name,
                 training_costs.append(cost)
             # test
             if epoch % test_period == 0:
+                print('Running tests...')
                 testing_costs = []
                 for i in xrange(num_test_batches):
                     images = binarize(next_test_batch(BATCH_SIZE)).reshape(
@@ -59,7 +61,7 @@ def train(dataset_name,
 
                     cost = network.test(images, with_update=False)
                     testing_costs.append(cost)
-                avg_test_cost = np.average(np.array(testing_costs))
+                avg_test_cost = np.average(testing_costs)
                 print('Test cost at epoch %d: %04f' % (epoch, avg_test_cost))
 
             # save the images some how

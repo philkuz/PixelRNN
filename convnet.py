@@ -103,9 +103,9 @@ class Network:
     def predict(self, images):
         return self.sess.run(self.output, feed_dict={self.inputs: images})
 
-    def test(self, images, perform_update=False):
+    def test(self, images, with_update=False):
         # TODO change to feedforward or something like that
-        if perform_update:
+        if with_update:
             _, cost = self.sess.run([self.optimize, self.loss],
                     feed_dict = {self.inputs: images})
         else:
