@@ -1,7 +1,7 @@
 import tensorflow as tf
 from utils import *
 import numpy as np
-from ops import conv2d
+from ops import conv2d, diagonal_bilstm
 
 USE_RESIDUALS = False
 
@@ -25,6 +25,7 @@ class Network:
 
         if USE_RESIDUALS:
             # add residuals here
+            return
         else:
             kernel_height, kernel_width = 7, 7
             # apply initial convlution layer with A masking
@@ -34,7 +35,7 @@ class Network:
         self.recurrent_layers = []
         last_input = self.conv_2d_inputs
         for i in range(INPUT_RECURRENT_LENGTH):
-            diag_bilstm_layer = # TODO PLUG BILSTM HERE w/input as Last_input
+            diag_bilstm_layer = diagonal_bilstm(self.inputs, NUM_HIDDEN_UNITS, use_residual=USE_RESIDUALS, scope='diagonal_bilstm_%i' % i)
             last_input = diag_bilstm_layer
             self.recurrent_layers.append(diag_bilstm_layer)
 
