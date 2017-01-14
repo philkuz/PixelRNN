@@ -67,9 +67,6 @@ def train(dataset_name,
             #sampled_images.append(samples)
 
 
-
-
-
-
-
+if __name__ == '__main__':
+    train('mnist')
     

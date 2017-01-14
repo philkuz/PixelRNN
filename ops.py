@@ -1,8 +1,11 @@
+import logging
+logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m-%d %H:%M:%S")
+
 import tensorflow as tf
 import numpy as np
 from utils import get_shape
+from tensorflow.python.ops import rnn_cell
 WEIGHT_INITIALIZER = tf.contrib.layers.xavier_initializer()
-from lstm_cell import DiagonalLSTMCell
 
 def conv1d(input, num_outputs, kernel_size, scope='conv1d'):
     with tf.variable_scope(scope):
@@ -20,8 +23,8 @@ def conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope
     with tf.variable_scope(scope):
         batch_size, image_height, image_width, num_channels = get_shape(input)
 
-        center_height = kernel_height / 2
-        center_width = kernel_width / 2
+        center_height = kernel_height // 2
+        center_width = kernel_width // 2
 
         # initialize kernel weights
         weights_shape = [kernel_height, kernel_width, num_channels, num_outputs]
@@ -30,8 +33,9 @@ def conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope
         # pre-convolution mask
         mask_shape = (kernel_height, kernel_width, num_channels, num_outputs)
         mask = np.ones(mask_shape, dtype=np.float32)
-        mask[center_height, center_width + 1, :, :] = 0.0
-        mask[center_height + 1, :, :, :] = 0.0
+
+        mask[center_height, center_width+1:, :, :] = 0.0
+        mask[center_height+1:, :, :, :] = 0.0
 
         # in type A, we do not allow a connection to the current focus of the kernel
         # which is its center pixel
@@ -51,14 +55,15 @@ def conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope
 def skew(inputs, scope="skew"):
     with tf.name_scope(scope):
         batch, height, width, channel = get_shape(inputs)
-        new_width = width + height
+        new_width = width + height - 1
         skewed_rows = []# inputs = tf.zeros([batch, width * 2 - 1 , height, channel])
-        rows = tf.unpack(tf.transpose(inputs, [1, 0, 3, 2])) # [height, batch, channel, width]
+        #rows = tf.unpack(tf.transpose(inputs, [1, 0, 3, 2])) # [height, batch, channel, width]
+        rows = tf.split(1, height, inputs)  # [batch, 1, width, channel]
 
         for i, row in enumerate(rows):
-            squeezed_row = tf.squeeze(row, [0]) # [batch, channel, width]
-            reshaped_row = tf.reshape(squeezed_row, [-1, width]) # [batch * channel, width]
-            padded_row = tf.pad(reshaped_row, (0, 0), (i, height - 1 - i))
+            transposed_row = tf.transpose(tf.squeeze(row, [1]), [0, 2, 1])
+            reshaped_row = tf.reshape(transposed_row, [-1, width]) # [batch * channel, width]
+            padded_row = tf.pad(reshaped_row, ((0, 0), (i, height - 1 - i)))
 
             unsqueezed_row = tf.reshape(padded_row, [-1, channel, new_width])  # [batch, channel, width*2-1]
             new_row = tf.transpose(unsqueezed_row, [0, 2, 1])  # [batch, width*2-1, channel]
@@ -76,7 +81,8 @@ def skew(inputs, scope="skew"):
 def unskew(skewed_outputs, width=0, scope="unskew"):
     with tf.name_scope(scope):
         batch, height, skewed_width, channel = get_shape(skewed_outputs)
-        rows = tf.unpack(tf.transpose(skewed_outputs, [1, 0, 2, 3,]))  # [height, batch, width, channel]
+        #rows = tf.unpack(tf.transpose(skewed_outputs, [1, 0, 2, 3,]))  # [height, batch, width, channel]
+        rows = tf.split(1, height, skewed_outputs)  # [batch, 1, width, channel]
         width = width if width else height
 
         unskewed_rows = []
@@ -84,12 +90,72 @@ def unskew(skewed_outputs, width=0, scope="unskew"):
         for i, row in enumerate(rows):
             sliced_row = tf.slice(row, [0, 0, i, 0], [-1, -1, width, -1])
             unskewed_rows.append(sliced_row)
-        unskewed_output = tf.pack(unskewed_rows, axis=1, name="unskewed_output")
+        unskewed_output = tf.concat(1, unskewed_rows, name="unskewed_output")
+
         desired_shape = [None, height, width, channel]
         output_shape = get_shape(unskewed_output)
         assert output_shape == desired_shape, "wrong shape of unskewed output. Actual {}; Expected {}".format(output_shape, desired_shape)
     return unskewed_output
 
+
+class DiagonalLSTMCell(rnn_cell.RNNCell):
+  def __init__(self, hidden_dims, height, channel):
+    self._num_unit_shards = 1
+    self._forget_bias = 1.
+
+    self._height = height
+    self._channel = channel
+
+    self._hidden_dims = hidden_dims
+    self._num_units = self._hidden_dims * self._height
+    self._state_size = self._num_units * 2
+    self._output_size = self._num_units
+
+  @property
+  def state_size(self):
+    return self._state_size
+
+  @property
+  def output_size(self):
+    return self._output_size
+
+  def __call__(self, i_to_s, state, scope="DiagonalBiLSTMCell"):
+    c_prev = tf.slice(state, [0, 0], [-1, self._num_units])
+    h_prev = tf.slice(state, [0, self._num_units], [-1, self._num_units]) # [batch, height * hidden_dims]
+
+    # i_to_s : [batch, 4 * height * hidden_dims]
+    input_size = i_to_s.get_shape().with_rank(2)[1]
+
+    if input_size.value is None:
+      raise ValueError("Could not infer input size from inputs.get_shape()[-1]")
+
+    with tf.variable_scope(scope):
+      # input-to-state (K_ss * h_{i-1}) : 2x1 convolution. generate 4h x n x n tensor.
+      conv1d_inputs = tf.reshape(h_prev,
+          [-1, self._height, 1, self._hidden_dims], name='conv1d_inputs') # [batch, height, 1, hidden_dims]
+
+      tf.add_to_collection('i_to_s', i_to_s)
+      tf.add_to_collection('conv1d_inputs', conv1d_inputs)
+
+      conv_s_to_s = conv1d(conv1d_inputs,
+          4 * self._hidden_dims, 2, scope='s_to_s') # [batch, height, 1, hidden_dims * 4]
+      s_to_s = tf.reshape(conv_s_to_s,
+          [-1, self._height * self._hidden_dims * 4]) # [batch, height * hidden_dims * 4]
+
+      tf.add_to_collection('conv_s_to_s', conv_s_to_s)
+      tf.add_to_collection('s_to_s', s_to_s)
+
+      lstm_matrix = tf.sigmoid(s_to_s + i_to_s)
+
+      # i = input_gate, g = new_input, f = forget_gate, o = output_gate
+      i, g, f, o = tf.split(1, 4, lstm_matrix)
+
+      c = f * c_prev + i * g
+      h = tf.mul(o, tf.tanh(c), name='hid')
+
+
+    new_state = tf.concat(1, [c, h])
+    return h, new_state
 
 def diagonal_lstm(inputs, hidden_dims, scope='diagonal_lstm'):
     with tf.variable_scope(scope):

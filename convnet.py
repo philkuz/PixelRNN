@@ -8,7 +8,7 @@ USE_RESIDUALS = False
 NUM_HIDDEN_UNITS = 6
 INPUT_RECURRENT_LENGTH = 4
 OUTPUT_RECURRENT_LENGTH = 4
-COLOR_RANGE = 256
+COLOR_RANGE = 1 # 256
 USE_MULTICHANNEL = False
 LEARNING_RATE = 1e-3
 
@@ -50,7 +50,7 @@ class Network:
 
         # apply final convolution layer with B masking
         conv2d_recurrent_logits = conv2d(recurrent_out_logits,
-                    COLOR_RANGE, [1, 1], 'B', scope='conv2d_recurrent_output')
+                    COLOR_RANGE, 1, 1, 'B', scope='conv2d_recurrent_output')
 
         if USE_MULTICHANNEL or num_channels > 1:
             raise NotImplementedError("We don't support multiple image channels yet")
