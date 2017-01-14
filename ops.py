@@ -155,5 +155,5 @@ def diagonal_bilstm(inputs, hidden_dims, use_residual=False, scope='diagonal_bil
         dummy_zeros = tf.zeros_like(output_state_bw_only_last)
 
         output_state_bw_with_last_zeros = tf.concat(1, [output_state_bw_except_last, dummy_zeros])
-        
+
         return output_state_fw + output_state_bw_with_last_zeros

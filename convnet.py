@@ -23,11 +23,10 @@ class Network:
         input_shape = [None, image_height, image_width, num_channels]
         self.inputs = tf.placeholder(tf.float32, input_shape)
 
+        kernel_height, kernel_width = 7, 7
         if USE_RESIDUALS:
-            # add residuals here
-            return
+            self.conv_2d_inputs = conv2d(self.inputs, NUM_HIDDEN_UNITS * 2, kernel_height, kernel_width, 'A')
         else:
-            kernel_height, kernel_width = 7, 7
             # apply initial convlution layer with A masking
             self.conv_2d_inputs = conv2d(self.inputs, NUM_HIDDEN_UNITS, kernel_height, kernel_width, 'A')
 
