@@ -1,6 +1,7 @@
 from convnet import Network
 from utils import binarize
 import tensorflow as tf
+import numpy as np
 import cifar10
 import mnist
 
@@ -27,6 +28,7 @@ def load_images(dataset_name, normalize=True):
 
 def train(dataset_name,
           max_epochs=10000,
+          test_period=250
           ):
     # Load dataset
     dataset, image_height, image_width, num_channels, next_train_batch, next_test_batch = load_images(dataset_name)
@@ -41,6 +43,7 @@ def train(dataset_name,
     with tf.Session() as sess:
         network = Network(sess, image_height, image_width, num_channels)
 
+        sampled_images = []
         for epoch in xrange(max_epochs):
             training_costs = []
             for i in xrange(num_train_batches):
@@ -48,16 +51,20 @@ def train(dataset_name,
                 cost = network.test(images, with_update=True)
                 training_costs.append(cost)
             # test
-            testing_costs = []
-            for i in xrange(num_test_batches):
-                images = binarize(next_test_batch(BATCH_SIZE)).reshape(
-                    [BATCH_SIZE, image_height, image_width, num_channels])
+            if epoch % test_period == 0:
+                testing_costs = []
+                for i in xrange(num_test_batches):
+                    images = binarize(next_test_batch(BATCH_SIZE)).reshape(
+                        [BATCH_SIZE, image_height, image_width, num_channels])
 
-                cost = network.test(images, with_update=False)
-                testing_costs.append(cost)
+                    cost = network.test(images, with_update=False)
+                    testing_costs.append(cost)
+                avg_test_cost = np.average(np.array(testing_costs))
+                print('Test cost at epoch %d: %04f' % (epoch, avg_test_cost))
+
             # save the images some how
-            samples = network.generate_image()
-
+            #samples = network.generate_image()
+            #sampled_images.append(samples)
 
 
 
