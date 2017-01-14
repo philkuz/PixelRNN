@@ -131,3 +131,29 @@ def diagonal_lstm(inputs, hidden_dims, scope='diagonal_lstm'):
         tf.add_to_collection('unskewed_outputs', outputs)
 
         return outputs
+def diagonal_bilstm(inputs, hidden_dims, use_residual=False, scope='diagonal_bilstm'):
+    with tf.variable_scope(scope):
+        def reverse(inputs):
+          return tf.reverse(inputs, [False, False, True, False])
+
+        output_state_fw = diagonal_lstm(inputs, hidden_dims, scope='output_state_fw')
+        output_state_bw = reverse(diagonal_lstm(reverse(inputs), hidden_dims, scope='output_state_bw'))
+
+
+        if use_residual:
+            #conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope='conv2d'):
+            residual_state_fw = conv2d(output_state_fw, hidden_dims * 2, 1, 1, "B", scope="residual_fw")
+            output_state_fw = residual_state_fw + inputs
+
+            residual_state_bw = conv2d(output_state_bw, hidden_dims * 2, 1, 1, "B", scope="residual_bw")
+            output_state_bw = residual_state_bw + inputs
+
+        batch, height, width, channel = get_shape(output_state_bw)
+
+        output_state_bw_except_last = tf.slice(output_state_bw, [0, 0, 0, 0], [-1, height-1, -1, -1])
+        output_state_bw_only_last = tf.slice(output_state_bw, [0, height-1, 0, 0], [-1, 1, -1, -1])
+        dummy_zeros = tf.zeros_like(output_state_bw_only_last)
+
+        output_state_bw_with_last_zeros = tf.concat(1, [output_state_bw_except_last, dummy_zeros])
+        
+        return output_state_fw + output_state_bw_with_last_zeros
