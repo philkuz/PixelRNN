@@ -1,4 +1,4 @@
-import logging
+#import logging
 logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m-%d %H:%M:%S")
 
 import tensorflow as tf
@@ -39,7 +39,7 @@ def conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope
 
         # in type A, we do not allow a connection to the current focus of the kernel
         # which is its center pixel
-        if mask_type == 'a':
+        if mask_type.lower() == 'a':
             mask[center_height, center_width, :, :] = 0.0
 
         # apply the mask
