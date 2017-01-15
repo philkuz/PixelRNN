@@ -4,10 +4,12 @@ import tensorflow as tf
 import numpy as np
 import cifar10
 import mnist
+from statistic import Statistic
 
 BATCH_SIZE = 16
 MNIST_PARAMS = 28, 28, 1
 CIFAR_PARAMS = cifar10.IMAGE_SIZE, cifar10.IMAGE_SIZE, 3
+
 
 
 def load_images(dataset_name, normalize=True):
@@ -42,7 +44,13 @@ def train(dataset_name,
 
     with tf.Session() as sess:
         network = Network(sess, image_height, image_width, num_channels)
-        tf.initialize_all_variables().run()
+        # tf.initialize_all_variables().run()
+
+        stat = Statistic(sess, 'mnist', 'train', tf.trainable_variables(), test_period)
+        stat.load_model()
+
+        initial_step = stat.get_t() if stat else 0
+
         sampled_images = []
         for epoch in xrange(max_epochs):
             print('Current epoch: %i' % epoch)
@@ -52,7 +60,7 @@ def train(dataset_name,
                 cost = network.test(images, with_update=True)
                 training_costs.append(cost)
             # test
-            if epoch % test_period == 0:
+            if epoch % test_period   == 0:
                 print('Running tests...')
                 testing_costs = []
                 for i in xrange(num_test_batches):
@@ -61,8 +69,10 @@ def train(dataset_name,
 
                     cost = network.test(images, with_update=False)
                     testing_costs.append(cost)
+                avg_train_cost = np.average(training_costs)
                 avg_test_cost = np.average(testing_costs)
                 print('Test cost at epoch %d: %04f' % (epoch, avg_test_cost))
+                stat.on_step(avg_train_cost, avg_test_cost)
 
             # save the images some how
             #samples = network.generate_image()

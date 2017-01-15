@@ -88,7 +88,7 @@ class Network:
             losses = [loss_per_pixel(predicted_pixel, target_pixel) for predicted_pixel, target_pixel in
                       zip(predicted_pixels, target_pixels)]
         else:
-            assert(num_channels == 1, "Convnet only support single-channel images")
+            assert num_channels == 1, "Convnet only support single-channel images"
 
             self.output = tf.nn.sigmoid(conv2d_recurrent_logits)
             self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
