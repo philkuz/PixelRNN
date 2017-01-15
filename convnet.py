@@ -5,9 +5,10 @@ from ops import conv2d, diagonal_bilstm
 
 USE_RESIDUALS = False
 
-NUM_HIDDEN_UNITS = 6
-INPUT_RECURRENT_LENGTH = 4
-OUTPUT_RECURRENT_LENGTH = 4
+NUM_HIDDEN_UNITS = 16
+OUTPUT_NUM_HIDDEN_UNITS = 32
+INPUT_RECURRENT_LENGTH = 7
+OUTPUT_RECURRENT_LENGTH = 2
 COLOR_RANGE = 1 # 256
 USE_MULTICHANNEL = False
 LEARNING_RATE = 1e-3
@@ -42,7 +43,7 @@ class Network:
         self.recurrent_layer_outputs = []
         for i in range(OUTPUT_RECURRENT_LENGTH):
             kernel_height, kernel_width = 1, 1
-            conv_layer = conv2d(last_input, NUM_HIDDEN_UNITS, kernel_height, kernel_width, 'B', 'conv2d_out_%i' % i)
+            conv_layer = conv2d(last_input, OUTPUT_NUM_HIDDEN_UNITS, kernel_height, kernel_width, 'B', 'conv2d_out_%i' % i)
             recurrent_out = tf.nn.relu(conv_layer)
             self.recurrent_layer_outputs.append(recurrent_out)
             last_input = recurrent_out

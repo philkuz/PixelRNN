@@ -19,7 +19,7 @@ CIFAR_PARAMS = cifar10.IMAGE_SIZE, cifar10.IMAGE_SIZE, 3
 
 def train(dataset_name,
           max_epochs=10000,
-          test_period=250
+          test_period=1
           ):
     # Load dataset
     dataset, image_height, image_width, num_channels, next_train_batch, next_test_batch = load_images(dataset_name)
