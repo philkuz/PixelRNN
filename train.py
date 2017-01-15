@@ -5,28 +5,17 @@ import numpy as np
 import cifar10
 import mnist
 from statistic import Statistic
+from utils import load_images, save_images
+import os
 
+# TODO unify these with utils.py
 BATCH_SIZE = 16
 MNIST_PARAMS = 28, 28, 1
 CIFAR_PARAMS = cifar10.IMAGE_SIZE, cifar10.IMAGE_SIZE, 3
 
 
 
-def load_images(dataset_name, normalize=True):
-    if dataset_name == 'mnist':
-        dataset = mnist.load_mnist()
-        image_height, image_width, num_channels = MNIST_PARAMS
-        next_train_batch = lambda x: dataset.train.next_batch(x)[0]
-        next_test_batch = lambda x: dataset.test.next_batch(x)[0]
-    elif dataset_name == 'cifar':
-        dataset = cifar10.load_cifar()
-        image_height, image_width, num_channels = CIFAR_PARAMS
-        # TODO
-        # next_train_batch
-        # next_test_batch
-    else:
-        raise('{0} is not a supported dataset'.format(dataset_name))
-    return dataset, image_height, image_width, num_channels, next_train_batch, next_test_batch
+
 
 def train(dataset_name,
           max_epochs=10000,
@@ -46,9 +35,10 @@ def train(dataset_name,
         network = Network(sess, image_height, image_width, num_channels)
         # tf.initialize_all_variables().run()
 
+        # TODO make more general
         stat = Statistic(sess, 'mnist', 'train', tf.trainable_variables(), test_period)
         stat.load_model()
-
+        SAMPLE_DIR = os.path.join('samples', 'mnist', 'train')
         initial_step = stat.get_t() if stat else 0
 
         sampled_images = []
@@ -74,9 +64,8 @@ def train(dataset_name,
                 print('Test cost at epoch %d: %04f' % (epoch, avg_test_cost))
                 stat.on_step(avg_train_cost, avg_test_cost)
 
-            # save the images some how
-            #samples = network.generate_image()
-            #sampled_images.append(samples)
+                samples = network.generate_images(100)
+                save_images(samples, image_height, image_width, 10, 10, directory=SAMPLE_DIR)
 
 
 if __name__ == '__main__':

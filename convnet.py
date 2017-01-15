@@ -112,7 +112,7 @@ class Network:
             cost = self.sess.run(self.loss, feed_dict={self.inputs: images})
         return cost
 
-    def generate_image(self, num_images=100, starting_pos=[0, 0], starting_image=None):
+    def generate_images(self, num_images=100, starting_pos=[0, 0], starting_image=None):
         """
         Generate an Image from a starting image
         :param num_images: The number of images that you want to generate
@@ -130,5 +130,7 @@ class Network:
                     next_sample = binarize(self.predict(samples))
                     samples[:, i, j, k] = next_sample[:, i, j, k]
         return samples
+
+
 
 
