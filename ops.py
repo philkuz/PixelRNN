@@ -1,5 +1,5 @@
 #import logging
-logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m-%d %H:%M:%S")
+# logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m-%d %H:%M:%S")
 
 import tensorflow as tf
 import numpy as np
