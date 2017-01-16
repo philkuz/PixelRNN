@@ -35,7 +35,7 @@ class Network:
         self.recurrent_layers = []
         last_input = self.conv_2d_inputs
         for i in range(INPUT_RECURRENT_LENGTH):
-            diag_bilstm_layer = diagonal_bilstm(self.inputs, NUM_HIDDEN_UNITS, use_residual=USE_RESIDUALS, scope='diagonal_bilstm_%i' % i)
+            diag_bilstm_layer = diagonal_bilstm(last_input, NUM_HIDDEN_UNITS, use_residual=USE_RESIDUALS, scope='diagonal_bilstm_%i' % i)
             last_input = diag_bilstm_layer
             self.recurrent_layers.append(diag_bilstm_layer)
 
