@@ -84,6 +84,7 @@ class Statistic(object):
 
         ckpt = tf.train.get_checkpoint_state(self.model_dir)
         if ckpt and ckpt.model_checkpoint_path:
+            print("Loading model from", ckpt.model_checkpoint_path)
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
             fname = os.path.join(self.model_dir, ckpt_name)
             self.saver.restore(self.sess, fname)
