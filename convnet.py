@@ -5,11 +5,12 @@ from ops import conv2d, diagonal_bilstm
 
 USE_RESIDUALS = False
 
-NUM_HIDDEN_UNITS = 16
-OUTPUT_NUM_HIDDEN_UNITS = 32
-INPUT_RECURRENT_LENGTH = 7
+NUM_HIDDEN_UNITS = 64
+OUTPUT_NUM_HIDDEN_UNITS = 64
+INPUT_RECURRENT_LENGTH = 2
 OUTPUT_RECURRENT_LENGTH = 2
 COLOR_RANGE = 1 # 256
+GRAD_CLIP = 1
 USE_MULTICHANNEL = False
 LEARNING_RATE = 1e-3
 MODEL = 'pixel_cnn'
@@ -104,8 +105,9 @@ class Network:
 
         optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE)
         gradients_and_vars = optimizer.compute_gradients(self.loss)
-
-        self.optimize = optimizer.apply_gradients(gradients_and_vars)
+        new_grads_and_vars = \
+        [(tf.clip_by_value(gv[0], -GRAD_CLIP,GRAD_CLIP), gv[1]) for gv in gradients_and_vars]
+        self.optimize = optimizer.apply_gradients(new_grads_and_vars)
 
     def predict(self, images):
         return self.sess.run(self.output, feed_dict={self.inputs: images})
