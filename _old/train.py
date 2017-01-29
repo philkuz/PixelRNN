@@ -69,5 +69,5 @@ def train(dataset_name,
 
 
 if __name__ == '__main__':
-    train('mnist')
+    train('mnist', test_period=5)
     

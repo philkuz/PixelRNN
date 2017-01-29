@@ -5,13 +5,15 @@ from ops import conv2d, diagonal_bilstm
 
 USE_RESIDUALS = False
 
-NUM_HIDDEN_UNITS = 16
-OUTPUT_NUM_HIDDEN_UNITS = 32
-INPUT_RECURRENT_LENGTH = 7
+NUM_HIDDEN_UNITS = 64
+OUTPUT_NUM_HIDDEN_UNITS = 64
+INPUT_RECURRENT_LENGTH = 2
 OUTPUT_RECURRENT_LENGTH = 2
 COLOR_RANGE = 1 # 256
+GRAD_CLIP = 1
 USE_MULTICHANNEL = False
 LEARNING_RATE = 1e-3
+MODEL = 'pixel_cnn'
 
 
 class Network:
@@ -25,7 +27,7 @@ class Network:
         self.inputs = tf.placeholder(tf.float32, input_shape)
 
         kernel_height, kernel_width = 7, 7
-        if USE_RESIDUALS:
+        if USE_RESIDUALS and MODEL == 'pixel_rnn':
             self.conv_2d_inputs = conv2d(self.inputs, NUM_HIDDEN_UNITS * 2, kernel_height, kernel_width, 'A')
         else:
             # apply initial convlution layer with A masking
@@ -35,9 +37,14 @@ class Network:
         self.recurrent_layers = []
         last_input = self.conv_2d_inputs
         for i in range(INPUT_RECURRENT_LENGTH):
-            diag_bilstm_layer = diagonal_bilstm(last_input, NUM_HIDDEN_UNITS, use_residual=USE_RESIDUALS, scope='diagonal_bilstm_%i' % i)
-            last_input = diag_bilstm_layer
-            self.recurrent_layers.append(diag_bilstm_layer)
+            if MODEL == 'pixel_rnn':
+                layer = diagonal_bilstm(last_input, NUM_HIDDEN_UNITS, use_residual=USE_RESIDUALS, scope='diagonal_bilstm_%i' % i)
+            elif MODEL == 'pixel_cnn':
+                layer=  conv2d(last_input, 3, 1, 1, "B", scope='conv_%i' % i)
+            else:
+                raise ValueError("No model matched `{}`".format(MODEL))
+            last_input = layer
+            self.recurrent_layers.append(layer)
 
         # construct post-recurrent layer convolutions with ReLU activation
         self.recurrent_layer_outputs = []
@@ -98,8 +105,9 @@ class Network:
 
         optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE)
         gradients_and_vars = optimizer.compute_gradients(self.loss)
-
-        self.optimize = optimizer.apply_gradients(gradients_and_vars)
+        new_grads_and_vars = \
+        [(tf.clip_by_value(gv[0], -GRAD_CLIP,GRAD_CLIP), gv[1]) for gv in gradients_and_vars]
+        self.optimize = optimizer.apply_gradients(new_grads_and_vars)
 
     def predict(self, images):
         return self.sess.run(self.output, feed_dict={self.inputs: images})
