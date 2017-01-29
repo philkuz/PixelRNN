@@ -1,102 +1,253 @@
-#import logging
-# logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m-%d %H:%M:%S")
+import logging
+logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m-%d %H:%M:%S")
 
-import tensorflow as tf
 import numpy as np
-from utils import get_shape
+import tensorflow as tf
 from tensorflow.python.ops import rnn_cell
+from tensorflow.examples.tutorials.mnist import input_data
+from tensorflow.contrib.layers import variance_scaling_initializer
+
 WEIGHT_INITIALIZER = tf.contrib.layers.xavier_initializer()
+#WEIGHT_INITIALIZER = tf.uniform_unit_scaling_initializer()
 
-def conv1d(input, num_outputs, kernel_size, scope='conv1d'):
-    with tf.variable_scope(scope):
-        batch_size, image_height, image_width, num_channels = get_shape(input)
-        kernel_height, kernel_width = kernel_size, 1
-        # initialize kernel weights
-        weights_shape = [kernel_height, kernel_width, num_channels, num_outputs]
-        weights = tf.get_variable("weights", weights_shape, tf.float32, WEIGHT_INITIALIZER, None)
+logger = logging.getLogger(__name__)
 
-    stride_shape = [1, 1, 1, 1]
-    outputs = tf.nn.conv2d(input, weights, stride_shape, padding='SAME', name='conv1d_outputs')
-    return outputs
+he_uniform = variance_scaling_initializer(factor=2.0, mode="FAN_IN", uniform=False)
+data_format = "NCHW"
 
-def conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope='conv2d'):
-    with tf.variable_scope(scope):
-        batch_size, image_height, image_width, num_channels = get_shape(input)
+def get_shape(layer):
+  return layer.get_shape().as_list()
 
-        center_height = kernel_height // 2
-        center_width = kernel_width // 2
-
-        # initialize kernel weights
-        weights_shape = [kernel_height, kernel_width, num_channels, num_outputs]
-        weights = tf.get_variable("weights", weights_shape, tf.float32, WEIGHT_INITIALIZER, None)
-
-        # pre-convolution mask
-        mask_shape = (kernel_height, kernel_width, num_channels, num_outputs)
-        mask = np.ones(mask_shape, dtype=np.float32)
-
-        mask[center_height, center_width+1:, :, :] = 0.0
-        mask[center_height+1:, :, :, :] = 0.0
-
-        # in type A, we do not allow a connection to the current focus of the kernel
-        # which is its center pixel
-        if mask_type.lower() == 'a':
-            mask[center_height, center_width, :, :] = 0.0
-
-        # apply the mask
-        weights *= tf.constant(mask, dtype=tf.float32)
-        # store the weights variable
-        tf.add_to_collection('conv2d_weights_mask_%s' % mask_type, weights)
-
-    stride_shape = [1, 1, 1, 1]
-    outputs = tf.nn.conv2d(input, weights, stride_shape, padding='SAME', name='conv2d_outputs')
-    tf.add_to_collection('conv2d_outputs', outputs)
-    return outputs
+#def get_shape(layer):
+#  if data_format == "NHWC":
+#    batch, height, width, channel = layer.get_shape().as_list()
+#  elif data_format == "NCHW":
+#    batch, channel, height, width = layer.get_shape().as_list()
+#  else:
+#    raise ValueError("Unknown data_format: %s" % data_format)
+#  return batch, height, width, channel
 
 def skew(inputs, scope="skew"):
-    with tf.name_scope(scope):
-        batch, height, width, channel = get_shape(inputs)
-        new_width = width + height - 1
-        skewed_rows = []# inputs = tf.zeros([batch, width * 2 - 1 , height, channel])
-        #rows = tf.unpack(tf.transpose(inputs, [1, 0, 3, 2])) # [height, batch, channel, width]
-        rows = tf.split(1, height, inputs)  # [batch, 1, width, channel]
+  with tf.name_scope(scope):
+    batch, height, width, channel = get_shape(inputs) # [batch, height, width, channel]
+    rows = tf.split(1, height, inputs) # [batch, 1, width, channel]
 
-        for i, row in enumerate(rows):
-            transposed_row = tf.transpose(tf.squeeze(row, [1]), [0, 2, 1])
-            reshaped_row = tf.reshape(transposed_row, [-1, width]) # [batch * channel, width]
-            padded_row = tf.pad(reshaped_row, ((0, 0), (i, height - 1 - i)))
+    new_width = width + height - 1
+    new_rows = []
 
-            unsqueezed_row = tf.reshape(padded_row, [-1, channel, new_width])  # [batch, channel, width*2-1]
-            new_row = tf.transpose(unsqueezed_row, [0, 2, 1])  # [batch, width*2-1, channel]
+    for idx, row in enumerate(rows):
+      transposed_row = tf.transpose(tf.squeeze(row, [1]), [0, 2, 1]) # [batch, channel, width]
+      squeezed_row = tf.reshape(transposed_row, [-1, width]) # [batch*channel, width]
+      padded_row = tf.pad(squeezed_row, ((0, 0), (idx, height - 1 - idx))) # [batch*channel, width*2-1]
 
-            assert get_shape(new_row) == [batch, new_width, channel], "wrong shape of skewed row"
-            skewed_rows.append(new_row)
+      unsqueezed_row = tf.reshape(padded_row, [-1, channel, new_width]) # [batch, channel, width*2-1]
+      untransposed_row = tf.transpose(unsqueezed_row, [0, 2, 1]) # [batch, width*2-1, channel]
 
-        skewed_inputs = tf.pack(skewed_rows, axis=1, name="skewed_inputs")
-        desired_shape = [None, height, new_width, channel]
-        skewed_shape = get_shape(skewed_inputs)
-        assert skewed_shape == desired_shape, "wrong shape of skewed input. Actual {}; Expected {}".format(skewed_shape, desired_shape)
+      assert get_shape(untransposed_row) == [batch, new_width, channel], "wrong shape of skewed row"
+      new_rows.append(untransposed_row)
 
-    return skewed_inputs
+    outputs = tf.pack(new_rows, axis=1, name="output")
+    assert get_shape(outputs) == [None, height, new_width, channel], "wrong shape of skewed output"
 
-def unskew(skewed_outputs, width=0, scope="unskew"):
-    with tf.name_scope(scope):
-        batch, height, skewed_width, channel = get_shape(skewed_outputs)
-        #rows = tf.unpack(tf.transpose(skewed_outputs, [1, 0, 2, 3,]))  # [height, batch, width, channel]
-        rows = tf.split(1, height, skewed_outputs)  # [batch, 1, width, channel]
-        width = width if width else height
+  logger.debug('[skew] %s : %s %s -> %s %s' \
+      % (scope, inputs.name, inputs.get_shape(), outputs.name, outputs.get_shape()))
+  return outputs
 
-        unskewed_rows = []
-        # iterate through the rows
-        for i, row in enumerate(rows):
-            sliced_row = tf.slice(row, [0, 0, i, 0], [-1, -1, width, -1])
-            unskewed_rows.append(sliced_row)
-        unskewed_output = tf.concat(1, unskewed_rows, name="unskewed_output")
+def unskew(inputs, width=None, scope="unskew"):
+  with tf.name_scope(scope):
+    batch, height, skewed_width, channel = get_shape(inputs)
+    width = width if width else height
 
-        desired_shape = [None, height, width, channel]
-        output_shape = get_shape(unskewed_output)
-        assert output_shape == desired_shape, "wrong shape of unskewed output. Actual {}; Expected {}".format(output_shape, desired_shape)
-    return unskewed_output
+    new_rows = []
+    rows = tf.split(1, height, inputs)
 
+    for idx, row in enumerate(rows):
+      new_rows.append(tf.slice(row, [0, 0, idx, 0], [-1, -1, width, -1]))
+    outputs = tf.concat(1, new_rows, name="output")
+
+  logger.debug('[unskew] %s : %s %s -> %s %s' \
+      % (scope, inputs.name, inputs.get_shape(), outputs.name, outputs.get_shape()))
+  return outputs
+
+def conv2d(
+    inputs,
+    num_outputs,
+    kernel_shape, # [kernel_height, kernel_width]
+    mask_type, # None, "A" or "B",
+    strides=[1, 1], # [column_wise_stride, row_wise_stride]
+    padding="SAME",
+    activation_fn=None,
+    weights_initializer=WEIGHT_INITIALIZER,
+    weights_regularizer=None,
+    biases_initializer=tf.zeros_initializer,
+    biases_regularizer=None,
+    scope="conv2d"):
+  with tf.variable_scope(scope):
+    mask_type = mask_type.lower()
+    batch_size, height, width, channel = inputs.get_shape().as_list()
+
+    kernel_h, kernel_w = kernel_shape
+    stride_h, stride_w = strides
+
+    assert kernel_h % 2 == 1 and kernel_w % 2 == 1, \
+      "kernel height and width should be odd number"
+
+    center_h = kernel_h // 2
+    center_w = kernel_w // 2
+
+    weights_shape = [kernel_h, kernel_w, channel, num_outputs]
+    weights = tf.get_variable("weights", weights_shape,
+      tf.float32, weights_initializer, weights_regularizer)
+
+    if mask_type is not None:
+      mask = np.ones(
+        (kernel_h, kernel_w, channel, num_outputs), dtype=np.float32)
+
+      mask[center_h, center_w+1: ,: ,:] = 0.
+      mask[center_h+1:, :, :, :] = 0.
+
+      if mask_type == 'a':
+        mask[center_h,center_w,:,:] = 0.
+
+      weights *= tf.constant(mask, dtype=tf.float32)
+      tf.add_to_collection('conv2d_weights_%s' % mask_type, weights)
+
+    outputs = tf.nn.conv2d(inputs,
+        weights, [1, stride_h, stride_w, 1], padding=padding, name='outputs')
+    tf.add_to_collection('conv2d_outputs', outputs)
+
+    if biases_initializer != None:
+      biases = tf.get_variable("biases", [num_outputs,],
+          tf.float32, biases_initializer, biases_regularizer)
+      outputs = tf.nn.bias_add(outputs, biases, name='outputs_plus_b')
+
+    if activation_fn:
+      outputs = activation_fn(outputs, name='outputs_with_fn')
+
+    logger.debug('[conv2d_%s] %s : %s %s -> %s %s' \
+        % (mask_type, scope, inputs.name, inputs.get_shape(), outputs.name, outputs.get_shape()))
+
+    return outputs
+
+def conv1d(
+    inputs,
+    num_outputs,
+    kernel_size,
+    strides=[1, 1], # [column_wise_stride, row_wise_stride]
+    padding="SAME",
+    activation_fn=None,
+    weights_initializer=WEIGHT_INITIALIZER,
+    weights_regularizer=None,
+    biases_initializer=tf.zeros_initializer,
+    biases_regularizer=None,
+    scope="conv1d"):
+  with tf.variable_scope(scope):
+    batch_size, height, _, channel = inputs.get_shape().as_list() # [batch, height, 1, channel]
+
+    kernel_h, kernel_w = kernel_size, 1
+    stride_h, stride_w = strides
+
+    weights_shape = [kernel_h, kernel_w, channel, num_outputs]
+    weights = tf.get_variable("weights", weights_shape,
+      tf.float32, weights_initializer, weights_regularizer)
+    tf.add_to_collection('conv1d_weights', weights)
+
+    outputs = tf.nn.conv2d(inputs, 
+        weights, [1, stride_h, stride_w, 1], padding=padding, name='outputs')
+    tf.add_to_collection('conv1d_outputs', weights)
+
+    if biases_initializer != None:
+      biases = tf.get_variable("biases", [num_outputs,],
+          tf.float32, biases_initializer, biases_regularizer)
+      outputs = tf.nn.bias_add(outputs, biases, name='outputs_plus_b')
+
+    if activation_fn:
+      outputs = activation_fn(outputs, name='outputs_with_fn')
+
+    logger.debug('[conv1d] %s : %s %s -> %s %s' \
+        % (scope, inputs.name, inputs.get_shape(), outputs.name, outputs.get_shape()))
+
+    return outputs
+
+def diagonal_bilstm(inputs, conf, scope='diagonal_bilstm'):
+  with tf.variable_scope(scope):
+    def reverse(inputs):
+      return tf.reverse(inputs, [False, False, True, False])
+
+    output_state_fw = diagonal_lstm(inputs, conf, scope='output_state_fw')
+    output_state_bw = reverse(diagonal_lstm(reverse(inputs), conf, scope='output_state_bw'))
+
+    tf.add_to_collection('output_state_fw', output_state_fw)
+    tf.add_to_collection('output_state_bw', output_state_bw)
+
+    if conf.use_residual:
+      residual_state_fw = conv2d(output_state_fw, conf.hidden_dims * 2, [1, 1], "B", scope="residual_fw")
+      output_state_fw = residual_state_fw + inputs
+
+      residual_state_bw = conv2d(output_state_bw, conf.hidden_dims * 2, [1, 1], "B", scope="residual_bw")
+      output_state_bw = residual_state_bw + inputs
+
+      tf.add_to_collection('residual_state_fw', residual_state_fw)
+      tf.add_to_collection('residual_state_bw', residual_state_bw)
+      tf.add_to_collection('residual_output_state_fw', output_state_fw)
+      tf.add_to_collection('residual_output_state_bw', output_state_bw)
+
+    batch, height, width, channel = get_shape(output_state_bw)
+
+    output_state_bw_except_last = tf.slice(output_state_bw, [0, 0, 0, 0], [-1, height-1, -1, -1])
+    output_state_bw_only_last = tf.slice(output_state_bw, [0, height-1, 0, 0], [-1, 1, -1, -1])
+    dummy_zeros = tf.zeros_like(output_state_bw_only_last)
+
+    output_state_bw_with_last_zeros = tf.concat(1, [output_state_bw_except_last, dummy_zeros])
+
+    tf.add_to_collection('output_state_bw_with_last_zeros', output_state_bw_with_last_zeros)
+
+    return output_state_fw + output_state_bw_with_last_zeros
+
+def diagonal_lstm(inputs, conf, scope='diagonal_lstm'):
+  with tf.variable_scope(scope):
+    tf.add_to_collection('lstm_inputs', inputs)
+
+    skewed_inputs = skew(inputs, scope="skewed_i")
+    tf.add_to_collection('skewed_lstm_inputs', skewed_inputs)
+
+    # input-to-state (K_is * x_i) : 1x1 convolution. generate 4h x n x n tensor.
+    input_to_state = conv2d(skewed_inputs, conf.hidden_dims * 4, [1, 1], "B", scope="i_to_s")
+    column_wise_inputs = tf.transpose(
+        input_to_state, [0, 2, 1, 3]) # [batch, width, height, hidden_dims * 4]
+
+    tf.add_to_collection('skewed_conv_inputs', input_to_state)
+    tf.add_to_collection('column_wise_inputs', column_wise_inputs)
+
+    batch, width, height, channel = get_shape(column_wise_inputs)
+    rnn_inputs = tf.reshape(column_wise_inputs,
+        [-1, width, height * channel]) # [batch, max_time, height * hidden_dims * 4]
+
+    tf.add_to_collection('rnn_inputs', rnn_inputs)
+
+    rnn_input_list = [tf.squeeze(rnn_input, squeeze_dims=[1]) 
+        for rnn_input in tf.split(split_dim=1, num_split=width, value=rnn_inputs)]
+
+    cell = DiagonalLSTMCell(conf.hidden_dims, height, channel)
+
+    if conf.use_dynamic_rnn:
+      outputs, states = tf.nn.dynamic_rnn(cell,
+          inputs=rnn_inputs, dtype=tf.float32) # [batch, width, height * hidden_dims]
+    else:
+      output_list, state_list = tf.nn.rnn(cell,
+          inputs=rnn_input_list, dtype=tf.float32) # width * [batch, height * hidden_dims]
+
+      packed_outputs = tf.pack(output_list, 1) # [batch, width, height * hidden_dims]
+      width_first_outputs = tf.reshape(packed_outputs,
+          [-1, width, height, conf.hidden_dims]) # [batch, width, height, hidden_dims]
+
+      skewed_outputs = tf.transpose(width_first_outputs, [0, 2, 1, 3])
+      tf.add_to_collection('skewed_outputs', skewed_outputs)
+
+      outputs = unskew(skewed_outputs)
+      tf.add_to_collection('unskewed_outputs', outputs)
+
+    return outputs
 
 class DiagonalLSTMCell(rnn_cell.RNNCell):
   def __init__(self, hidden_dims, height, channel):
@@ -153,73 +304,26 @@ class DiagonalLSTMCell(rnn_cell.RNNCell):
       c = f * c_prev + i * g
       h = tf.mul(o, tf.tanh(c), name='hid')
 
+    logger.debug('[DiagonalLSTMCell] %s : %s %s -> %s %s' \
+        % (scope, i_to_s.name, i_to_s.get_shape(), h.name, h.get_shape()))
 
     new_state = tf.concat(1, [c, h])
     return h, new_state
 
-def diagonal_lstm(inputs, hidden_dims, scope='diagonal_lstm'):
-    with tf.variable_scope(scope):
-        tf.add_to_collection('lstm_inputs', inputs)
+class RowLSTMCell(rnn_cell.RNNCell):
+  def __init__(self, num_units, kernel_shape=[3, 1]):
+    self._num_units = num_units
+    self._state_size = num_units * 2
+    self._output_size = num_units
+    self._kernel_shape = kernel_shape
 
-        skewed_inputs = skew(inputs, scope="skewed_i")
-        tf.add_to_collection('skewed_lstm_inputs', skewed_inputs)
+  @property
+  def state_size(self):
+    return self._state_size
 
-        # input-to-state (K_is * x_i) : 1x1 convolution. generate 4h x n x n tensor.
-        input_to_state = conv2d(skewed_inputs, hidden_dims * 4, 1, 1, mask_type="B", scope="i_to_s")
-        column_wise_inputs = tf.transpose(
-            input_to_state, [0, 2, 1, 3]) # [batch, width, height, hidden_dims * 4]
+  @property
+  def output_size(self):
+    return self._output_size
 
-        tf.add_to_collection('skewed_conv_inputs', input_to_state)
-        tf.add_to_collection('column_wise_inputs', column_wise_inputs)
-
-        batch, width, height, channel = get_shape(column_wise_inputs)
-        rnn_inputs = tf.reshape(column_wise_inputs,
-            [-1, width, height * channel]) # [batch, max_time, height * hidden_dims * 4]
-
-        tf.add_to_collection('rnn_inputs', rnn_inputs)
-
-        rnn_input_list = [tf.squeeze(rnn_input, squeeze_dims=[1])
-            for rnn_input in tf.split(split_dim=1, num_split=width, value=rnn_inputs)]
-
-        cell = DiagonalLSTMCell(hidden_dims, height, channel)
-
-        output_list, state_list = tf.nn.rnn(cell,
-          inputs=rnn_input_list, dtype=tf.float32) # width * [batch, height * hidden_dims]
-
-        packed_outputs = tf.pack(output_list, 1) # [batch, width, height * hidden_dims]
-        width_first_outputs = tf.reshape(packed_outputs,
-          [-1, width, height, hidden_dims]) # [batch, width, height, hidden_dims]
-
-        skewed_outputs = tf.transpose(width_first_outputs, [0, 2, 1, 3]) # [batch, height, width, hidden_dims]
-        tf.add_to_collection('skewed_outputs', skewed_outputs)
-
-        outputs = unskew(skewed_outputs)
-        tf.add_to_collection('unskewed_outputs', outputs)
-
-        return outputs
-def diagonal_bilstm(inputs, hidden_dims, use_residual=False, scope='diagonal_bilstm'):
-    with tf.variable_scope(scope):
-        def reverse(inputs):
-          return tf.reverse(inputs, [False, False, True, False])
-
-        output_state_fw = diagonal_lstm(inputs, hidden_dims, scope='output_state_fw')
-        output_state_bw = reverse(diagonal_lstm(reverse(inputs), hidden_dims, scope='output_state_bw'))
-
-
-        if use_residual:
-            #conv2d(input, num_outputs, kernel_height, kernel_width, mask_type='A', scope='conv2d'):
-            residual_state_fw = conv2d(output_state_fw, hidden_dims * 2, 1, 1, "B", scope="residual_fw")
-            output_state_fw = residual_state_fw + inputs
-
-            residual_state_bw = conv2d(output_state_bw, hidden_dims * 2, 1, 1, "B", scope="residual_bw")
-            output_state_bw = residual_state_bw + inputs
-
-        batch, height, width, channel = get_shape(output_state_bw)
-
-        output_state_bw_except_last = tf.slice(output_state_bw, [0, 0, 0, 0], [-1, height-1, -1, -1])
-        output_state_bw_only_last = tf.slice(output_state_bw, [0, height-1, 0, 0], [-1, 1, -1, -1])
-        dummy_zeros = tf.zeros_like(output_state_bw_only_last)
-
-        output_state_bw_with_last_zeros = tf.concat(1, [output_state_bw_except_last, dummy_zeros])
-
-        return output_state_fw + output_state_bw_with_last_zeros
+  def __call__(self, inputs, state, scope="RowLSTMCell"):
+    raise Exception("Not implemented")
