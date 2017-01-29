@@ -60,7 +60,6 @@ class Statistic(object):
 
   def load_model(self):
     logger.info("Initializing all variables")
-    tf.initialize_all_variables().run()
 
     logger.info("Loading checkpoints...")
     ckpt = tf.train.get_checkpoint_state(self.model_dir)
