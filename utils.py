@@ -48,10 +48,14 @@ def save_images(images, height, width, n_row, n_col,
   images = images.reshape((n_row, n_col, height, width))
   images = images.transpose(1, 2, 0, 3)
   images = images.reshape((height * n_row, width * n_col))
-
-  filename = '%s_%s.jpg' % (prefix, get_timestamp())
+  filename_tmplte = '%s_%s.jpg'
+  i = 0
+  while not os.path.exists(os.path.join(directory, filename_tmplte) % (prefix, i)):
+    i += 1
+  filename = filename_tmplte % (prefix, i)
   scipy.misc.toimage(images, cmin=cmin, cmax=cmax) \
       .save(os.path.join(directory, filename))
+  return os.path.join(directory, filename)
 
 def binarize(images):
     rand = np.random.uniform(size=images.shape)
