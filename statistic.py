@@ -70,5 +70,5 @@ class Statistic(object):
       logger.info("Load SUCCESS: %s" % fname)
     else:
       logger.info("Load FAILED: %s" % self.model_dir)
-
+  def start(self):
     self.t = self.t_add_op.eval(session=self.sess)

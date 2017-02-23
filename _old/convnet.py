@@ -129,10 +129,12 @@ class Network:
         :param starting_image: The iamage
         :return:
         """
+            
         if starting_image is not None:
-            samples = starting_image.copy()
+            samples = starting_image
         else:
-            samples = np.zeros((num_images, self.image_height, self.image_width, self.num_channels), dtype='float32')
+            samples = tf.zeros((num_images, self.image_height, self.image_width, self.num_channels), dtype='float32')
+            
         for i in range(starting_pos[1], self.image_height):
             for j in range(starting_pos[0], self.image_width):
                 for k in range(self.num_channels):

@@ -48,10 +48,37 @@ def save_images(images, height, width, n_row, n_col,
   images = images.reshape((n_row, n_col, height, width))
   images = images.transpose(1, 2, 0, 3)
   images = images.reshape((height * n_row, width * n_col))
-
-  filename = '%s_%s.jpg' % (prefix, get_timestamp())
+  filename_tmplte = '%s_%s.jpg'
+  i = 0
+  while not os.path.exists(os.path.join(directory, filename_tmplte) % (prefix, i)):
+    i += 1
+  filename = filename_tmplte % (prefix, i)
   scipy.misc.toimage(images, cmin=cmin, cmax=cmax) \
       .save(os.path.join(directory, filename))
+  return os.path.join(directory, filename)
+
+def binarize(images):
+    rand = np.random.uniform(size=images.shape)
+    return (rand < images).astype('float32')
+
+def load_images(dataset_name, normalize=True):
+    if dataset_name == 'mnist':
+        dataset = mnist.load_mnist()
+        image_height, image_width, num_channels = MNIST_PARAMS
+        next_train_batch = lambda x: dataset.train.next_batch(x)[0]
+        next_test_batch = lambda x: dataset.test.next_batch(x)[0]
+    elif dataset_name == 'cifar':
+        dataset = cifar10.load_cifar()
+        image_height, image_width, num_channels = CIFAR_PARAMS
+        # TODO
+        # next_train_batch
+        # next_test_batch
+    else:
+        raise('{0} is not a supported dataset'.format(dataset_name))
+    return dataset, image_height, image_width, num_channels, next_train_batch, next_test_batch
+
+def get_shape(tensor):
+    return tensor.get_shape().as_list()
 
 def get_model_dir(config, exceptions=None):
   attrs = config.__dict__['__flags']
