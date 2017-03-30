@@ -3,7 +3,9 @@ logging.basicConfig(format="[%(asctime)s] %(message)s", datefmt="%m-%d %H:%M:%S"
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.ops import rnn_cell
+# from tensorflow.python.ops import rnn_cell
+# tensorflow/contrib/rnn/python/ops/core_rnn_cell.py
+from tensorflow.contrib.rnn.python.ops import core_rnn_cell
 from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.contrib.layers import variance_scaling_initializer
 
@@ -79,7 +81,7 @@ def conv2d(
     activation_fn=None,
     weights_initializer=WEIGHT_INITIALIZER,
     weights_regularizer=None,
-    biases_initializer=tf.zeros_initializer,
+    biases_initializer=tf.zeros_initializer(),
     biases_regularizer=None,
     scope="conv2d"):
   with tf.variable_scope(scope):
@@ -138,7 +140,7 @@ def conv1d(
     activation_fn=None,
     weights_initializer=WEIGHT_INITIALIZER,
     weights_regularizer=None,
-    biases_initializer=tf.zeros_initializer,
+    biases_initializer=tf.zeros_initializer(),
     biases_regularizer=None,
     scope="conv1d"):
   with tf.variable_scope(scope):
@@ -152,7 +154,7 @@ def conv1d(
       tf.float32, weights_initializer, weights_regularizer)
     tf.add_to_collection('conv1d_weights', weights)
 
-    outputs = tf.nn.conv2d(inputs, 
+    outputs = tf.nn.conv2d(inputs,
         weights, [1, stride_h, stride_w, 1], padding=padding, name='outputs')
     tf.add_to_collection('conv1d_outputs', weights)
 
@@ -225,7 +227,7 @@ def diagonal_lstm(inputs, conf, scope='diagonal_lstm'):
 
     tf.add_to_collection('rnn_inputs', rnn_inputs)
 
-    rnn_input_list = [tf.squeeze(rnn_input, squeeze_dims=[1]) 
+    rnn_input_list = [tf.squeeze(rnn_input, squeeze_dims=[1])
         for rnn_input in tf.split(split_dim=1, num_split=width, value=rnn_inputs)]
 
     cell = DiagonalLSTMCell(conf.hidden_dims, height, channel)
@@ -249,7 +251,7 @@ def diagonal_lstm(inputs, conf, scope='diagonal_lstm'):
 
     return outputs
 
-class DiagonalLSTMCell(rnn_cell.RNNCell):
+class DiagonalLSTMCell(core_rnn_cell.RNNCell):
   def __init__(self, hidden_dims, height, channel):
     self._num_unit_shards = 1
     self._forget_bias = 1.
@@ -310,7 +312,7 @@ class DiagonalLSTMCell(rnn_cell.RNNCell):
     new_state = tf.concat(1, [c, h])
     return h, new_state
 
-class RowLSTMCell(rnn_cell.RNNCell):
+class RowLSTMCell(core_rnn_cell.RNNCell):
   def __init__(self, num_units, kernel_shape=[3, 1]):
     self._num_units = num_units
     self._state_size = num_units * 2
