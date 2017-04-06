@@ -25,16 +25,16 @@ class dotdict(dict):
 
 def mprint(matrix, pivot=0.5):
   for array in matrix:
-    print "".join("#" if i > pivot else " " for i in array)
+    print("".join("#" if i > pivot else " " for i in array))
 
 def show_all_variables():
   total_count = 0
   for idx, op in enumerate(tf.trainable_variables()):
     shape = op.get_shape()
     count = np.prod(shape)
-    print "[%2d] %s %s = %s" % (idx, op.name, shape, count)
+    print("[%2d] %s %s = %s" % (idx, op.name, shape, count))
     total_count += int(count)
-  print "[Total] variable size: %s" % "{:,}".format(total_count)
+  print("[Total] variable size: %s" % "{:,}".format(total_count))
 
 def get_timestamp():
   now = datetime.datetime.now(dateutil.tz.tzlocal())
@@ -43,15 +43,15 @@ def get_timestamp():
 def binarize(images):
   return (np.random.uniform(size=images.shape) < images).astype('float32')
 
-def save_images(images, height, width, n_row, n_col, 
+def save_images(images, height, width, n_row, n_col,
       cmin=0.0, cmax=1.0, directory="./", prefix="sample"):
   images = images.reshape((n_row, n_col, height, width))
   images = images.transpose(1, 2, 0, 3)
   images = images.reshape((height * n_row, width * n_col))
   filename_tmplte = '%s_%s.jpg'
   i = 0
-  while not os.path.exists(os.path.join(directory, filename_tmplte) % (prefix, i)):
-    i += 1
+  while os.path.exists(os.path.join(directory, filename_tmplte % (prefix, i))):
+     i += 1
   filename = filename_tmplte % (prefix, i)
   scipy.misc.toimage(images, cmin=cmin, cmax=cmax) \
       .save(os.path.join(directory, filename))
