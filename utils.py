@@ -56,7 +56,13 @@ def save_images(images, height, width, n_row, n_col,
   scipy.misc.toimage(images, cmin=cmin, cmax=cmax) \
       .save(os.path.join(directory, filename))
   return os.path.join(directory, filename)
-
+def occlude(images, height, width):
+    assert images.shape == (len(images), height, width, 1), 'shape doesn\'t match expected shape'
+    samples = np.zeros((len(images), height, width, 1), dtype='float32')
+    samples[:,:height//2] = images[:, :height//2]
+    return samples
+    
+    
 def binarize(images):
     rand = np.random.uniform(size=images.shape)
     return (rand < images).astype('float32')
