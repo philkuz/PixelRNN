@@ -23,11 +23,11 @@ There are two easy ways to install these libraries and their dependencies:
 
 3. To build the Dockerfile, enter
     ```bash
-    docker build -t pixelrnn_dockerfile -f dockerfile .
+    docker build -t pixelrnn_dockerfile .
     ```
     If you get a permissions error on running this command, you may need to run it with `sudo`:
     ```bash
-    sudo docker build -t pixelrnn_dockerfile -f dockerfile .
+    sudo docker build -t pixelrnn_dockerfile .
     ```
 
 4. Run Docker from the Dockerfile you've just built
