@@ -1,6 +1,6 @@
 # Using TensorFlow to Generate Images with PixelRNNs
 
-This repo hosts the code associated with the O'Reilly article, "Using Tensorflow to Generate Images with PixelRNNs: How to generate novel images using neural networks".
+This repo hosts the code associated with the O'Reilly article, ["Using Tensorflow to Generate Images with PixelRNNs: How to generate novel images using neural networks"](https://www.oreilly.com/ideas/using-tensorflow-to-generate-images-with-pixelrnns).
 
 In this article, we walk through creating a generative model to produce realistic-looking images using recurrent neural networks in Tensorflow. Specifically, we use a PixelRNN architecture trained on MNIST to generate images that look like handwritten digits.
 
